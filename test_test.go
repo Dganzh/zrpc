@@ -1,14 +1,12 @@
 package zrpc
 
 import (
-	log "github.com/Dganzh/zlog"
+	"log"
 	"testing"
+	"time"
 )
 
-type HelloService struct {
-
-}
-
+type HelloService struct{}
 
 type HelloArgs struct {
 	Name string
@@ -18,20 +16,21 @@ type HelloReply struct {
 	OK bool
 }
 
-
 func (h *HelloService) HelloWorld(args *HelloArgs, reply *HelloReply) {
-	log.Infow("receive hello world", "name", args.Name)
+	log.Println("Receive hello world", "name", args.Name)
 	reply.OK = true
 }
 
-
-
 func TestServerAndClient(t *testing.T) {
+	// start server
 	addr := "localhost:8989"
 	s := NewServer(addr)
 	s.Register(&HelloService{})
 	go s.Start()
 
+	time.Sleep(time.Millisecond)
+
+	// create client and send RPC
 	client := NewClient(addr)
 	args := HelloArgs{Name: "dganzh"}
 	reply := HelloReply{}
@@ -43,5 +42,3 @@ func TestServerAndClient(t *testing.T) {
 		t.Error("client Call HelloService.HelloWorld result incorrect.")
 	}
 }
-
-

@@ -3,25 +3,23 @@ package zrpc
 import (
 	"context"
 	"errors"
-	log "github.com/Dganzh/zlog"
 	pb "github.com/Dganzh/zrpc/core"
 	"google.golang.org/grpc"
+	"log"
 	"net"
 	"reflect"
 	"strings"
 )
 
-
 const PORT = ":5205"
 
-
-// Func(ctx context.Context, Args ArgsType, ReplyType)
+// Handler Func(ctx context.Context, Args ArgsType, ReplyType)
 type Handler struct {
-	Func reflect.Value
-	NParams int
-	NReturn int
-	ArgsType reflect.Type			// maybe nil
-	ReplyType reflect.Type			// maybe nil
+	Func      reflect.Value
+	NParams   int
+	NReturn   int
+	ArgsType  reflect.Type // maybe nil
+	ReplyType reflect.Type // maybe nil
 }
 
 func newHandler(method reflect.Method) *Handler {
@@ -38,20 +36,17 @@ func newHandler(method reflect.Method) *Handler {
 	return h
 }
 
-
 type Service struct {
-	name string
+	name     string
 	handlers map[string]*Handler
 }
-
 
 type Server struct {
 	pb.UnimplementedRPCServer
 	services map[string]*Service
-	gob *Gob
-	addr string
+	gob      *Gob
+	addr     string
 }
-
 
 func (s *Server) Register(service interface{}) {
 	svcType := reflect.TypeOf(service)
@@ -59,7 +54,7 @@ func (s *Server) Register(service interface{}) {
 	handlers := make(map[string]*Handler, svcType.NumMethod())
 	for m := 0; m < svcType.NumMethod(); m++ {
 		name := svcType.Method(m).Name
-		log.Infof("register name %s", name)
+		log.Printf("register name %s", name)
 		method := svcValue.MethodByName(name)
 		if !method.IsValid() {
 			continue
@@ -77,20 +72,13 @@ func (s *Server) Register(service interface{}) {
 	if len(handlers) > 0 {
 		svcName := svcType.Elem().Name()
 		s.services[svcName] = &Service{name: svcName, handlers: handlers}
-		log.Infow("register success", "service name", svcName, "services", s.services)
+		log.Println("register success", "service name", svcName, "services", s.services)
 	}
 }
 
-
 func (s *Server) Call(ctx context.Context, request *pb.Request) (*pb.Response, error) {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Error("recovered from: %v", err)
-		}
-	}()
 	return s.call(ctx, request)
 }
-
 
 func (s *Server) call(ctx context.Context, request *pb.Request) (*pb.Response, error) {
 	handlerInfo := strings.Split(request.GetHandler(), ".")
@@ -126,7 +114,6 @@ func (s *Server) call(ctx context.Context, request *pb.Request) (*pb.Response, e
 	return resp, nil
 }
 
-
 func (s *Server) Start() {
 	if len(s.services) <= 0 {
 		log.Fatalf("Please register service!")
@@ -143,7 +130,6 @@ func (s *Server) Start() {
 	}
 }
 
-
 func NewServer(addr string) *Server {
 	s := &Server{}
 	s.services = make(map[string]*Service)
@@ -155,5 +141,3 @@ func NewServer(addr string) *Server {
 	}
 	return s
 }
-
-

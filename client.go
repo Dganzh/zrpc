@@ -2,9 +2,9 @@ package zrpc
 
 import (
 	"context"
-	log "github.com/Dganzh/zlog"
 	pb "github.com/Dganzh/zrpc/core"
 	"google.golang.org/grpc"
+	"log"
 	"time"
 )
 
@@ -12,12 +12,10 @@ const (
 	ADDRESS = "localhost:5205"
 )
 
-
 type Client struct {
 	client pb.RPCClient
-	gob *Gob
+	gob    *Gob
 }
-
 
 func NewClient(addr string) *Client {
 	if addr == "" {
@@ -29,13 +27,12 @@ func NewClient(addr string) *Client {
 	}
 	return &Client{
 		client: pb.NewRPCClient(conn),
-		gob: NewGobObject(),
+		gob:    NewGobObject(),
 	}
 }
 
-
 func (c *Client) Call(handler string, arg interface{}, reply interface{}) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 3 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	data, _ := c.gob.Encode(arg)
 	r, err := c.client.Call(ctx, &pb.Request{Handler: handler, Data: data})
@@ -44,6 +41,6 @@ func (c *Client) Call(handler string, arg interface{}, reply interface{}) bool {
 		return false
 	}
 	_ = c.gob.Decode(r.GetData(), reply)
-	log.Debugf("Call %s Result: %+v", handler, reply)
+	log.Printf("Call %s Result: %+v", handler, reply)
 	return true
 }
