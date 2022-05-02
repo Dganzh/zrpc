@@ -3,6 +3,8 @@ package zrpc
 import (
 	"context"
 	"errors"
+	"github.com/Dganzh/zrpc/codec"
+	"github.com/Dganzh/zrpc/config"
 	pb "github.com/Dganzh/zrpc/core"
 	"google.golang.org/grpc"
 	"log"
@@ -10,8 +12,6 @@ import (
 	"reflect"
 	"strings"
 )
-
-const PORT = ":5205"
 
 // Handler Func(ctx context.Context, Args ArgsType, ReplyType)
 type Handler struct {
@@ -44,8 +44,8 @@ type Service struct {
 type Server struct {
 	pb.UnimplementedRPCServer
 	services map[string]*Service
-	gob      *Gob
-	addr     string
+	codecMap map[pb.CodecType]codec.Codec
+	cfg      *config.ServerConfig
 }
 
 func (s *Server) Register(service interface{}) {
@@ -81,6 +81,10 @@ func (s *Server) Call(ctx context.Context, request *pb.Request) (*pb.Response, e
 }
 
 func (s *Server) call(ctx context.Context, request *pb.Request) (*pb.Response, error) {
+	curCodec, ok := s.codecMap[request.GetCodecType()]
+	if !ok {
+		return nil, errors.New("Invalid CodecType " + request.GetCodecType().String())
+	}
 	handlerInfo := strings.Split(request.GetHandler(), ".")
 	if len(handlerInfo) != 2 {
 		return nil, errors.New("Invalid Handler " + request.GetHandler())
@@ -98,7 +102,7 @@ func (s *Server) call(ctx context.Context, request *pb.Request) (*pb.Response, e
 	var params []reflect.Value
 	data := request.GetData()
 	args := reflect.New(handler.ArgsType.Elem())
-	if err := s.gob.Decode(data, args.Interface()); err != nil {
+	if err := curCodec.Decode(data, args.Interface()); err != nil {
 		return nil, errors.New("BadRequest " + err.Error())
 	}
 	params = append(params, args)
@@ -106,7 +110,7 @@ func (s *Server) call(ctx context.Context, request *pb.Request) (*pb.Response, e
 	params = append(params, reply)
 	handler.Func.Call(params)
 	resp := &pb.Response{}
-	data, err := s.gob.Encode(reply.Interface())
+	data, err := curCodec.Encode(reply.Interface())
 	if err != nil {
 		return nil, errors.New("InternalServerError: invalid return value" + err.Error())
 	}
@@ -119,7 +123,7 @@ func (s *Server) Start() {
 		log.Fatalf("Please register service!")
 		return
 	}
-	lis, err := net.Listen("tcp", s.addr)
+	lis, err := net.Listen("tcp", s.cfg.Addr)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -130,14 +134,23 @@ func (s *Server) Start() {
 	}
 }
 
-func NewServer(addr string) *Server {
-	s := &Server{}
-	s.services = make(map[string]*Service)
-	s.gob = NewGobObject()
-	if addr == "" {
-		s.addr = PORT
-	} else {
-		s.addr = addr
+func NewServer(cfg *config.ServerConfig) *Server {
+	if cfg == nil {
+		cfg = config.GetDefaultServerConfig()
+	}
+	cm := make(map[pb.CodecType]codec.Codec, len(pb.CodecType_name))
+	for ct, _ := range pb.CodecType_name {
+		switch pb.CodecType(ct) {
+		case pb.CodecType_GOB:
+			cm[pb.CodecType_GOB] = codec.NewGobObject()
+		case pb.CodecType_JSON:
+			cm[pb.CodecType_JSON] = codec.NewJsonCodec()
+		}
+	}
+	s := &Server{
+		services: make(map[string]*Service),
+		codecMap: cm,
+		cfg:      cfg,
 	}
 	return s
 }

@@ -9,10 +9,17 @@ service RPC {
   rpc Call (Request) returns (Response) {}
 }
 
+enum CodecType {
+  GOB = 0;
+  JSON = 1;
+  MSGPACK = 2;
+}
+
 // The request message containing the user's name.
 message Request {
   string handler = 1;
-  bytes data = 2;
+  CodecType codecType = 2;
+  bytes data = 3;
 }
 
 // The response message containing the greetings
