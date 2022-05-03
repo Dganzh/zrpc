@@ -118,7 +118,7 @@ func (s *Server) call(ctx context.Context, request *pb.Request) (*pb.Response, e
 	return resp, nil
 }
 
-func (s *Server) Start() {
+func (s *Server) Start(opt ...grpc.ServerOption) {
 	if len(s.services) <= 0 {
 		log.Fatalf("Please register service!")
 		return
@@ -127,7 +127,7 @@ func (s *Server) Start() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	srv := grpc.NewServer()
+	srv := grpc.NewServer(opt...)
 	pb.RegisterRPCServer(srv, s)
 	if err := srv.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
